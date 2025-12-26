@@ -1,0 +1,22 @@
+/* Tailwind Directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom global styles */
+:root {
+  --primary-color: #58C1D1;
+  --bg-color: #ffffff;
+  --text-color: #333333;
+}
+
+body {
+  @apply bg-[var(--bg-color)] text-[var(--text-color)] font-sans;
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* Optional: Smooth transitions */
+* {
+  transition: all 0.2s ease-in-out;
+}
