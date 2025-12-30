@@ -1,16 +1,63 @@
-# React + Vite
+# 🛠 Panen Admin Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A **React-based admin dashboard** for the **Panen: Digital Product Hub** Flutter app.  
+It allows administrators to monitor store performance, manage users and products, and handle withdrawal requests locally. The dashboard connects to a **Supabase database** for real-time data.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 📸 Screenshots
 
-## React Compiler
+### Dashboard Overview
+![Dashboard Overview](screenshots/admin-dashboard.png)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Revenue & Products
+![Revenue and Products](screenshots/admin-products.png)
 
-## Expanding the ESLint configuration
+### Users
+![Users and Withdrawals](screenshots/admin-users.png)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Withdrawals
+![Users and Withdrawals](screenshots/admin-payments.png)
+
+---
+
+## 🚀 Features
+
+- View **platform metrics**: Total Revenue, Products Sold, Creator Earnings, Company Balance, Total Users, Active Products, Total Withdrawn, Pending Withdrawals  
+- **View users** and approve requests to become creators (sell digital products)  
+- Approve or reject **active products**  
+- Manage and process **creator withdrawals**  
+- Real-time updates powered by Supabase  
+
+> ⚠️ This dashboard is designed for **local use only**. There is no login system for admin.
+
+---
+
+## 🧰 Tech Stack
+
+- **Frontend:** React.js, Tailwind CSS / Bootstrap  
+- **Database:** Supabase  
+- **State Management:** Redux / Context API (if used)  
+- **Charts & Visualization:** Recharts / Chart.js  
+- **Backend:** Connected to Panen Flutter app APIs  
+
+---
+
+## 🎯 Purpose
+
+Developed as part of my **Final Year Project (FYP)** to manage the Panen digital product hub locally.  
+This project demonstrates:  
+- Real-time admin monitoring of users, products, and platform metrics  
+- Admin approval workflows for creators and product listings  
+- Integration with a Flutter app backend and Supabase database  
+- Building a clean, responsive React dashboard UI  
+
+---
+
+## ⚙️ Local Setup
+
+```bash
+git clone https://github.com/Husaini-husein/panen-admin-dashboard.git
+cd panen-admin-dashboard
+npm install
+npm start
