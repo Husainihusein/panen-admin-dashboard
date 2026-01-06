@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
-import { Search, Filter, Eye, Check, X, Clock, Package, TrendingUp, Image } from "lucide-react";
+import { useRef, useEffect, useState } from "react";
+import { Search, Filter, Eye, Check, X, Clock, Package, Image } from "lucide-react";
 import supabase from "../supabaseClient";
 import Layout from "../components/Layout";
+import { Document, Page, pdfjs } from "react-pdf";
+
+pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 export default function Products() {
     const [products, setProducts] = useState([]);
@@ -9,6 +12,7 @@ export default function Products() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
+    const [previewModal, setPreviewModal] = useState({ open: false, product: null, url: null, type: null });
 
     useEffect(() => {
         loadProducts();
@@ -20,7 +24,6 @@ export default function Products() {
 
     async function loadProducts() {
         setLoading(true);
-
         try {
             let { data, error } = await supabase
                 .from("products")
@@ -30,6 +33,7 @@ export default function Products() {
                         username
                     )
                 `)
+                .eq("is_deleted", false)
                 .order("created_at", { ascending: false });
 
             if (error || !data) {
@@ -41,6 +45,7 @@ export default function Products() {
                             username
                         )
                     `)
+                    .eq("is_deleted", false)
                     .order("created_at", { ascending: false });
 
                 data = result.data;
@@ -51,6 +56,7 @@ export default function Products() {
                 const { data: productsOnly, error: productsError } = await supabase
                     .from("products")
                     .select("*")
+                    .eq("is_deleted", false)
                     .order("created_at", { ascending: false });
 
                 if (productsError) {
@@ -164,6 +170,30 @@ export default function Products() {
         }
     }
 
+    const PdfPreview = ({ url }) => {
+        const containerRef = useRef(null);
+        const [width, setWidth] = useState(600);
+
+        useEffect(() => {
+            if (containerRef.current) {
+                setWidth(containerRef.current.offsetWidth);
+            }
+            const handleResize = () => {
+                if (containerRef.current) setWidth(containerRef.current.offsetWidth);
+            };
+            window.addEventListener("resize", handleResize);
+            return () => window.removeEventListener("resize", handleResize);
+        }, []);
+
+        return (
+            <div ref={containerRef} className="w-full h-96 overflow-auto mt-2 border">
+                <Document file={url}>
+                    <Page pageNumber={1} width={width} />
+                </Document>
+            </div>
+        );
+    };
+
     const stats = {
         total: products.length,
         approved: products.filter((p) => p.status === "approved").length,
@@ -171,6 +201,95 @@ export default function Products() {
         rejected: products.filter((p) => p.status === "rejected").length,
     };
 
+    // --- generate signed URL for private files ---
+    async function getSignedUrl(filePath) {
+        try {
+            console.log('Original file path:', filePath);
+
+            // Parse the URL and extract path segments
+            const url = new URL(filePath);
+            const pathSegments = url.pathname.split('/').filter(Boolean);
+
+            console.log('Path segments:', pathSegments);
+
+            // Find the index of 'product-files' in the path
+            const bucketIndex = pathSegments.findIndex(segment => segment === 'product-files');
+
+            if (bucketIndex === -1 || bucketIndex >= pathSegments.length - 1) {
+                throw new Error('Invalid product-files URL format');
+            }
+
+            // Get everything AFTER 'product-files'
+            const filePathInBucket = pathSegments.slice(bucketIndex + 1).join('/');
+
+            console.log('File path in bucket:', filePathInBucket);
+
+            const { data, error } = await supabase
+                .storage
+                .from("product-files")
+                .createSignedUrl(filePathInBucket, 3600); // Valid for 1 hour
+
+            if (error) {
+                console.error('Signed URL error:', error);
+                throw error;
+            }
+
+            if (!data?.signedUrl) {
+                throw new Error('Failed to generate signed URL');
+            }
+
+            console.log('✅ Signed URL generated successfully');
+            return data.signedUrl;
+        } catch (err) {
+            console.error('Error getting signed URL:', err);
+            alert(`Error accessing file: ${err.message}\n\nCheck console for details.`);
+            return null;
+        }
+    }
+
+    async function handleViewProduct(item) {
+        let url = item.file_url || item.video_url || item.thumbnail_url;
+
+        if (!url) {
+            alert('No file URL available for this product');
+            return;
+        }
+
+        // Determine file type
+        let fileType = 'unknown';
+        const lowerUrl = url.toLowerCase();
+
+        if (lowerUrl.endsWith('.pdf')) {
+            fileType = 'pdf';
+        } else if (lowerUrl.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+            fileType = 'image';
+        } else if (lowerUrl.match(/\.(mp4|webm|mov)$/)) {
+            fileType = 'video';
+        } else if (url.includes('youtube.com') || url.includes('youtu.be')) {
+            fileType = 'youtube';
+        }
+
+        // For public Supabase files, use directly
+        // For private files or external links, open in new tab
+        const isPublicSupabase = url.includes('/object/public/');
+
+        if (fileType === 'pdf' || fileType === 'image' || fileType === 'video') {
+            // Show in modal for review
+            setPreviewModal({
+                open: true,
+                product: item,
+                url: url,
+                type: fileType
+            });
+        } else {
+            // External links or unknown types - open in new tab
+            window.open(url, "_blank", "noopener,noreferrer");
+        }
+    }
+
+    function closePreview() {
+        setPreviewModal({ open: false, product: null, url: null, type: null });
+    }
     return (
         <Layout>
             <div className="space-y-6">
@@ -191,7 +310,6 @@ export default function Products() {
                         <p className="text-gray-500 text-sm font-medium mb-1">Total Products</p>
                         <p className="text-2xl font-bold text-gray-800">{stats.total}</p>
                     </div>
-
                     <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between mb-3">
                             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
@@ -201,7 +319,6 @@ export default function Products() {
                         <p className="text-gray-500 text-sm font-medium mb-1">Approved</p>
                         <p className="text-2xl font-bold text-gray-800">{stats.approved}</p>
                     </div>
-
                     <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between mb-3">
                             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-yellow-500 to-yellow-600 flex items-center justify-center">
@@ -211,7 +328,6 @@ export default function Products() {
                         <p className="text-gray-500 text-sm font-medium mb-1">In Review</p>
                         <p className="text-2xl font-bold text-gray-800">{stats.review}</p>
                     </div>
-
                     <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between mb-3">
                             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center">
@@ -338,7 +454,7 @@ export default function Products() {
                                                         <option value="rejected">Reject</option>
                                                     </select>
                                                     <button
-                                                        onClick={() => window.open(`/product/${item.id}`, "_blank")}
+                                                        onClick={() => handleViewProduct(item)}
                                                         className="inline-flex items-center gap-2 px-4 py-2 bg-[#58C1D1] text-white rounded-lg text-sm font-medium hover:bg-[#4AA8B8] transition-colors"
                                                     >
                                                         <Eye className="w-4 h-4" />
@@ -351,6 +467,92 @@ export default function Products() {
                                 </div>
                             );
                         })}
+                    </div>
+
+                )}
+
+                {/* Preview Modal */}
+                {previewModal.open && (
+                    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                            {/* Modal Header */}
+                            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-800">{previewModal.product.title}</h3>
+                                    <p className="text-sm text-gray-500 mt-1">Review product content</p>
+                                </div>
+                                <button
+                                    onClick={closePreview}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            {/* Modal Content */}
+                            <div className="flex-1 overflow-auto p-6">
+                                {previewModal.type === 'pdf' && (
+                                    <div className="w-full h-[70vh]">
+                                        <iframe
+                                            src={`${previewModal.url}#toolbar=0&navpanes=0&scrollbar=1`}
+                                            className="w-full h-full border rounded-lg"
+                                            title="PDF Preview"
+                                        />
+                                    </div>
+                                )}
+
+                                {previewModal.type === 'image' && (
+                                    <div className="flex items-center justify-center">
+                                        <img
+                                            src={previewModal.url}
+                                            alt={previewModal.product.title}
+                                            className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                                        />
+                                    </div>
+                                )}
+
+                                {previewModal.type === 'video' && (
+                                    <div className="flex items-center justify-center">
+                                        <video
+                                            controls
+                                            className="max-w-full max-h-[70vh] rounded-lg"
+                                            src={previewModal.url}
+                                        >
+                                            Your browser does not support video playback.
+                                        </video>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div className="p-6 border-t border-gray-200 flex justify-between items-center">
+                                <div className="text-sm text-gray-600">
+                                    <span className="font-medium">Status:</span> {getStatusBadge(previewModal.product.status)}
+                                </div>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => {
+                                            updateStatus(previewModal.product.id, 'rejected');
+                                            closePreview();
+                                        }}
+                                        className="px-5 py-2.5 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors inline-flex items-center gap-2"
+                                    >
+                                        <X className="w-4 h-4" />
+                                        Reject
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            updateStatus(previewModal.product.id, 'approved');
+                                            closePreview();
+                                        }}
+                                        className="px-5 py-2.5 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 transition-colors inline-flex items-center gap-2"
+                                    >
+                                        <Check className="w-4 h-4" />
+                                        Approve
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
