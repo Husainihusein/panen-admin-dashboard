@@ -103,13 +103,6 @@ export default function Withdrawals() {
                         Paid
                     </span>
                 );
-            case "rejected":
-                return (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
-                        <X className="w-3.5 h-3.5" />
-                        Rejected
-                    </span>
-                );
             default:
                 return null;
         }
@@ -207,7 +200,6 @@ export default function Withdrawals() {
                                 <option value="all">All Status</option>
                                 <option value="pending">Pending</option>
                                 <option value="paid">Paid</option>
-                                <option value="rejected">Rejected</option>
                             </select>
                         </div>
                     </div>
@@ -270,14 +262,7 @@ export default function Withdrawals() {
                                                         className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
                                                     >
                                                         <Check size={16} />
-                                                        Approve
-                                                    </button>
-                                                    <button
-                                                        onClick={() => updateWithdrawalStatus(w.id, "rejected")}
-                                                        className="flex items-center gap-2 bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
-                                                    >
-                                                        <X size={16} />
-                                                        Reject
+                                                        Mark as Paid
                                                     </button>
                                                 </div>
                                             )}
