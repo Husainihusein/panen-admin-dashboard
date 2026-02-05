@@ -13,6 +13,11 @@ export default function Products() {
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
     const [previewModal, setPreviewModal] = useState({ open: false, product: null, url: null, type: null });
+    const [showRejectModal, setShowRejectModal] = useState(false);
+    const [rejectProductId, setRejectProductId] = useState(null);
+    const [rejectionReason, setRejectionReason] = useState("");
+    const [rejectionRemark, setRejectionRemark] = useState("");
+
 
     useEffect(() => {
         loadProducts();
@@ -127,22 +132,42 @@ export default function Products() {
         setFilteredProducts(filtered);
     }
 
-    async function updateStatus(productId, newStatus) {
-        try {
-            const { error } = await supabase
-                .from("products")
-                .update({ status: newStatus })
-                .eq("id", productId);
+    async function updateStatus(productId, status) {
+        if (status === "rejected") {
+            setRejectProductId(productId);
+            setRejectionReason("");
+            setRejectionRemark("");
+            setShowRejectModal(true);
+            return;
+        }
 
-            if (!error) {
-                loadProducts();
-            } else {
-                console.error("Error updating status:", error);
-            }
-        } catch (err) {
-            console.error("Unexpected error:", err);
+        const { error } = await supabase
+            .from("products")
+            .update({ status })
+            .eq("id", productId);
+
+        if (!error) loadProducts();
+    }
+
+    async function handleRejectConfirm() {
+        if (!rejectProductId || !rejectionReason) return;
+
+        const { error } = await supabase
+            .from("products")
+            .update({
+                status: "rejected",
+                rejection_reason: rejectionReason,
+                rejection_remark:
+                    rejectionReason === "Other" ? rejectionRemark : null,
+            })
+            .eq("id", rejectProductId);
+
+        if (!error) {
+            setShowRejectModal(false);
+            loadProducts();
         }
     }
+
 
     function getStatusBadge(status) {
         switch (status) {
@@ -441,6 +466,20 @@ export default function Products() {
                                                         {item.description}
                                                     </p>
                                                 )}
+                                                {item.status === "rejected" && (
+                                                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                                                        <div className="text-xs font-semibold text-red-600 mb-1">
+                                                            Rejection Reason
+                                                        </div>
+                                                        <div className="text-sm text-red-800">
+                                                            {item.rejection_reason || "No reason provided"}
+                                                            {item.rejection_remark
+                                                                ? ` — ${item.rejection_remark}`
+                                                                : ""}
+                                                        </div>
+                                                    </div>
+                                                )}
+
 
                                                 {/* Actions */}
                                                 <div className="flex flex-wrap gap-2">
@@ -501,6 +540,23 @@ export default function Products() {
                                     </div>
                                 )}
 
+                                {/* Rejection Info */}
+                                {previewModal.product.status === "rejected" && (
+                                    <div className="px-6 pt-4">
+                                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                            <div className="text-xs font-semibold text-red-600 mb-1">
+                                                Rejection Reason
+                                            </div>
+                                            <div className="text-sm text-red-800">
+                                                {previewModal.product.rejection_reason || "No reason provided"}
+                                                {previewModal.product.rejection_remark
+                                                    ? ` — ${previewModal.product.rejection_remark}`
+                                                    : ""}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {previewModal.type === 'image' && (
                                     <div className="flex items-center justify-center">
                                         <img
@@ -531,12 +587,18 @@ export default function Products() {
                                 </div>
                                 <div className="flex gap-3">
                                     <button
+                                        disabled={previewModal.product.status === "rejected"}
                                         onClick={() => {
                                             updateStatus(previewModal.product.id, 'rejected');
                                             closePreview();
                                         }}
-                                        className="px-5 py-2.5 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors inline-flex items-center gap-2"
+                                        className={`px-5 py-2.5 rounded-lg font-medium inline-flex items-center gap-2
+        ${previewModal.product.status === "rejected"
+                                                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                                : "bg-red-500 text-white hover:bg-red-600"
+                                            }`}
                                     >
+
                                         <X className="w-4 h-4" />
                                         Reject
                                     </button>
@@ -555,6 +617,54 @@ export default function Products() {
                         </div>
                     </div>
                 )}
+                {showRejectModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                        <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-lg">
+                            <h3 className="text-lg font-bold mb-4">Reject Product</h3>
+
+                            <label className="block text-sm font-medium mb-1">Reason</label>
+                            <select
+                                value={rejectionReason}
+                                onChange={(e) => setRejectionReason(e.target.value)}
+                                className="w-full mb-3 px-3 py-2 border rounded-lg"
+                            >
+                                <option value="">Select reason</option>
+                                <option value="Incomplete product information">Incomplete product information</option>
+                                <option value="Low-quality or misleading content">Low-quality or misleading content</option>
+                                <option value="Violates platform guidelines">Violates platform guidelines</option>
+                                <option value="Copyright / ownership concerns">Copyright / ownership concerns</option>
+                                <option value="Duplicate or spam product">Duplicate or spam product</option>
+                                <option value="Other">Other</option>
+                            </select>
+
+                            {rejectionReason === "Other" && (
+                                <textarea
+                                    value={rejectionRemark}
+                                    onChange={(e) => setRejectionRemark(e.target.value)}
+                                    placeholder="Add remark"
+                                    className="w-full mb-3 px-3 py-2 border rounded-lg"
+                                />
+                            )}
+
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    onClick={() => setShowRejectModal(false)}
+                                    className="px-4 py-2 bg-gray-200 rounded-lg"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleRejectConfirm}
+                                    disabled={!rejectionReason}
+                                    className="px-4 py-2 bg-red-500 text-white rounded-lg"
+                                >
+                                    Reject
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
             </div>
         </Layout>
     );

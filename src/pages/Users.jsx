@@ -11,6 +11,11 @@ export default function Users() {
     const [statusFilter, setStatusFilter] = useState("all");
     const [userTypeFilter, setUserTypeFilter] = useState("all");
     const [expandedUser, setExpandedUser] = useState(null);
+    const [showRejectModal, setShowRejectModal] = useState(false);
+    const [rejectUserId, setRejectUserId] = useState(null);
+    const [rejectionReason, setRejectionReason] = useState("");
+    const [rejectionRemark, setRejectionRemark] = useState("");
+
 
     useEffect(() => {
         loadUsers();
@@ -35,6 +40,8 @@ export default function Users() {
                         bank_account,
                         bank_name,
                         status,
+                        rejection_reason,
+                        rejection_remark,
                         created_at
                     )
                 `)
@@ -52,6 +59,8 @@ export default function Users() {
                             bank_account,
                             bank_name,
                             status,
+                            rejection_reason,
+                            rejection_remark,
                             created_at
                         )
                     `)
@@ -143,6 +152,33 @@ export default function Users() {
 
         setFilteredUsers(filtered);
     }
+    async function handleRejectConfirm() {
+        if (!rejectUserId || !rejectionReason) return;
+
+        try {
+            const { error } = await supabase
+                .from("creators")
+                .update({
+                    status: "rejected",
+                    rejection_reason: rejectionReason,
+                    rejection_remark: rejectionRemark || null
+                })
+                .eq("user_id", rejectUserId);
+
+            if (error) {
+                console.error("Failed to reject creator:", error);
+            } else {
+                setShowRejectModal(false);
+                setRejectUserId(null);
+                setRejectionReason("");
+                setRejectionRemark("");
+                loadUsers();
+            }
+        } catch (err) {
+            console.error("Unexpected error:", err);
+        }
+    }
+
 
     async function updateCreatorStatus(userId, newStatus) {
         try {
@@ -385,13 +421,24 @@ export default function Users() {
                                                 <>
                                                     <select
                                                         value={user.creator.status}
-                                                        onChange={(e) => updateCreatorStatus(user.id, e.target.value)}
+                                                        onChange={(e) => {
+                                                            const value = e.target.value;
+                                                            if (value === "rejected") {
+                                                                setRejectUserId(user.id);
+                                                                setRejectionReason("");
+                                                                setRejectionRemark("");
+                                                                setShowRejectModal(true);
+                                                            } else {
+                                                                updateCreatorStatus(user.id, value);
+                                                            }
+                                                        }}
                                                         className="w-full lg:w-40 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#58C1D1] focus:border-transparent bg-white font-medium"
                                                     >
                                                         <option value="pending">Set Pending</option>
                                                         <option value="approved">Approve</option>
                                                         <option value="rejected">Reject</option>
                                                     </select>
+
                                                     <button
                                                         onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)}
                                                         className="flex items-center gap-2 text-sm text-[#58C1D1] hover:text-[#4AA8B8] font-medium transition-colors"
@@ -457,6 +504,16 @@ export default function Users() {
                                                         day: 'numeric'
                                                     })}
                                                 </div>
+                                                {user.creator.status === "rejected" && (
+                                                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4">
+                                                        <div className="text-xs font-medium text-red-600 mb-1">Rejection Reason</div>
+                                                        <div className="text-sm text-red-800">
+                                                            {user.creator.rejection_reason}
+                                                            {user.creator.rejection_remark ? ` - ${user.creator.rejection_remark}` : ""}
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                             </div>
                                         </div>
                                     </div>
@@ -465,6 +522,54 @@ export default function Users() {
                         ))}
                     </div>
                 )}
+                {showRejectModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                        <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-lg">
+                            <h3 className="text-lg font-bold mb-4">Reject Creator</h3>
+
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                            <select
+                                value={rejectionReason}
+                                onChange={(e) => setRejectionReason(e.target.value)}
+                                className="w-full mb-3 px-3 py-2 border border-gray-300 rounded-lg"
+                            >
+                                <option value="">Select reason</option>
+                                <option value="Incomplete Full Name / IC / Passport">Incomplete Full Name / IC / Passport</option>
+                                <option value="Invalid IC / Passport Number">Invalid IC / Passport Number</option>
+                                <option value="Receipt Name Does Not Match Bank Account">Receipt Name Does Not Match Bank Account</option>
+                                <option value="Bank Account Details Invalid">Bank Account Details Invalid</option>
+                                <option value="Suspicious / Duplicate Application">Suspicious / Duplicate Application</option>
+                                <option value="Other">Other</option>
+                            </select>
+
+                            {rejectionReason === "Other" && (
+                                <textarea
+                                    value={rejectionRemark}
+                                    onChange={(e) => setRejectionRemark(e.target.value)}
+                                    placeholder="Add remark"
+                                    className="w-full mb-3 px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                            )}
+
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    onClick={() => setShowRejectModal(false)}
+                                    className="px-4 py-2 bg-gray-200 rounded-lg"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => handleRejectConfirm()}
+                                    className="px-4 py-2 bg-red-500 text-white rounded-lg"
+                                    disabled={!rejectionReason}
+                                >
+                                    Reject
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
             </div>
         </Layout>
     );
